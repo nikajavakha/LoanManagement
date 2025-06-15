@@ -1,0 +1,46 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LoanManagement.Api", "LoanManagement.Api\LoanManagement.Api.csproj", "{434B5964-10DB-433B-A2DC-6C81FD39D6FB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LoanManagement.Domain", "LoanManagement.Domain\LoanManagement.Domain.csproj", "{98021912-6127-49CC-8901-F985DD0A80D6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LoanManagement.Infrastructure", "LoanManagement.Infrastructure\LoanManagement.Infrastructure.csproj", "{BA9C5EAC-9BAF-4480-9045-64BE981C0D52}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LoanManagement.Application", "LoanManagement.Application\LoanManagement.Application.csproj", "{D9F86980-365A-4314-9572-70444FF7BD55}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LoanManagement.Web", "LoanManagement.Web\LoanManagement.Web.csproj", "{72724662-4EFB-474E-BBC8-525818610EFA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LoanManagement.Tests", "LoanManagement.Tests\LoanManagement.Tests.csproj", "{CE2FDD28-AEDB-459C-A02C-BB9FD8205EC4}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{434B5964-10DB-433B-A2DC-6C81FD39D6FB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{434B5964-10DB-433B-A2DC-6C81FD39D6FB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{434B5964-10DB-433B-A2DC-6C81FD39D6FB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{434B5964-10DB-433B-A2DC-6C81FD39D6FB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{98021912-6127-49CC-8901-F985DD0A80D6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{98021912-6127-49CC-8901-F985DD0A80D6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{98021912-6127-49CC-8901-F985DD0A80D6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{98021912-6127-49CC-8901-F985DD0A80D6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BA9C5EAC-9BAF-4480-9045-64BE981C0D52}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BA9C5EAC-9BAF-4480-9045-64BE981C0D52}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BA9C5EAC-9BAF-4480-9045-64BE981C0D52}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BA9C5EAC-9BAF-4480-9045-64BE981C0D52}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D9F86980-365A-4314-9572-70444FF7BD55}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D9F86980-365A-4314-9572-70444FF7BD55}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D9F86980-365A-4314-9572-70444FF7BD55}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D9F86980-365A-4314-9572-70444FF7BD55}.Release|Any CPU.Build.0 = Release|Any CPU
+		{72724662-4EFB-474E-BBC8-525818610EFA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{72724662-4EFB-474E-BBC8-525818610EFA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{72724662-4EFB-474E-BBC8-525818610EFA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{72724662-4EFB-474E-BBC8-525818610EFA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CE2FDD28-AEDB-459C-A02C-BB9FD8205EC4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CE2FDD28-AEDB-459C-A02C-BB9FD8205EC4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CE2FDD28-AEDB-459C-A02C-BB9FD8205EC4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CE2FDD28-AEDB-459C-A02C-BB9FD8205EC4}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

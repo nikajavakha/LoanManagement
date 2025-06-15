@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Loan Application System</title>
+    <link rel="stylesheet" type="text/css"
+          href="https://cdnjs.cloudflare.com/ajax/libs/extjs/6.0.0/classic/theme-triton/resources/theme-triton-all.css">
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/extjs/6.0.0/ext-all.js"></script>
+</head>
+<body>
+<script type="text/javascript">
+    Ext.onReady(function () {
+
+        const CONFIG = {
+            API_BASE: 'https://localhost:44344/api'
+        };
+
+        const CONSTANTS = {
+            LOAN_TYPES: {
+                QUICK: {value: 1, label: 'სწრაფი სესხი'},
+                AUTO: {value: 2, label: 'ავტო სესხი'},
+                INSTALLMENT: {value: 3, label: 'განვადება'}
+            },
+            CURRENCIES: {
+                GEL: {value: 1, label: 'GEL'},
+                USD: {value: 2, label: 'USD'},
+                EUR: {value: 3, label: 'EUR'}
+            },
+            STATUSES: {
+                IN_PROCESS: {value: 1, label: 'დამუშავების პროცესში'},
+                SUBMITTED: {value: 2, label: 'გადაგზავნილი'},
+                PENDING: {value: 3, label: 'განხილვაში'},
+                APPROVED: {value: 4, label: 'დამტკიცებული'},
+                REJECTED: {value: 5, label: 'უარყოფილი'}
+            },
+            ROLES: {
+                USER: 'User',
+                APPROVER: 'Approver'
+            }
+        };
+
+        const Utils = {
+            getLoanTypeStore() {
+                return Object.values(CONSTANTS.LOAN_TYPES).map(type => [type.value, type.label]);
+            },
+
+            getCurrencyStore() {
+                return Object.values(CONSTANTS.CURRENCIES).map(curr => [curr.value, curr.label]);
+            },
+
+            getLoanTypeLabel(value) {
+                const type = Object.values(CONSTANTS.LOAN_TYPES).find(t => t.value === value);
+                return type ? type.label : value;
+            },
+
+            getCurrencyLabel(value) {
+                const currency = Object.values(CONSTANTS.CURRENCIES).find(c => c.value === value);
+                return currency ? currency.label : value;
+            },
+
+            getStatusLabel(value) {
+                const status = Object.values(CONSTANTS.STATUSES).find(s => s.value === value);
+                return status ? status.label : value;
+            },
+
+            formatDate(dateString) {
+                return dateString ? Ext.Date.format(new Date(dateString), 'Y-m-d H:i') : '';
+            },
+
+            formatAmount(amount, currency) {
+                const currencyLabel = this.getCurrencyLabel(currency);
+                return `${amount} ${currencyLabel}`;
+            }
+        };
+
+        const AppState = {
+            authToken: null,
+            userRole: null,
+
+            setAuth(token, role) {
+                this.authToken = token;
+                this.userRole = role;
+                sessionStorage.setItem('authToken', token);
+                sessionStorage.setItem('userRole', role);
+            },
+
+            clearAuth() {
+                this.authToken = null;
+                this.userRole = null;
+                sessionStorage.removeItem('authToken');
+                sessionStorage.removeItem('userRole');
+            },
+
+            loadAuthFromStorage() {
+                const token = sessionStorage.getItem('authToken');
+                const role = sessionStorage.getItem('userRole');
+                if (token && role) {
+                    this.authToken = token;
+                    this.userRole = role;
+                    return true;
+                }
+                return false;
+            },
+
+            isAuthenticated() {
+                return !!this.authToken;
+            },
+
+            isApprover() {
+                return this.userRole === CONSTANTS.ROLES.APPROVER;
+            }
+        };
+
+        const API = {
+            call(config) {
+                const headers = {'Content-Type': 'application/json'};
+                if (AppState.authToken) {
+                    headers['Authorization'] = `Bearer ${AppState.authToken}`;
+                }
+
+                return new Promise((resolve, reject) => {
+                    Ext.Ajax.request({
+                        url: CONFIG.API_BASE + config.url,
+                        method: config.method || 'GET',
+                        headers: headers,
+                        jsonData: config.data,
+                        success: (response) => {
+                            try {
+                                const result = Ext.decode(response.responseText);
+                                resolve(result);
+                            } catch (e) {
+                                resolve(response);
+                            }
+                        },
+                        failure: (response) => {
+                            let errorMessage = 'Request failed';
+                            let validationErrors = [];
+
+                            try {
+                                const errorData = Ext.decode(response.responseText);
+
+                                if (errorData.title || errorData.detail) {
+                                    errorMessage = errorData.title || errorData.detail || errorMessage;
+                                }
+                                
+                                if (errorData.errors && Array.isArray(errorData.errors)) {
+                                    validationErrors = errorData.errors;
+                                } else if (errorData.errors && typeof errorData.errors === 'object') {
+                                    validationErrors = Object.keys(errorData.errors).reduce((acc, key) => {
+                                        const fieldErrors = errorData.errors[key];
+                                        if (Array.isArray(fieldErrors)) {
+                                            fieldErrors.forEach(error => acc.push(error));
+                                        } else {
+                                            acc.push(fieldErrors);
+                                        }
+                                        return acc;
+                                    }, []);
+                                }
+
+                            } catch (e) {
+                                errorMessage = response.statusText || errorMessage;
+                            }
+
+                            const error = new Error(errorMessage);
+                            error.validationErrors = validationErrors;
+                            error.statusCode = response.status;
+                            reject(error);
+                        }
+                    });
+                });
+            },
+
+            commands: {
+                login: (credentials) => API.call({
+                    url: '/auth/login',
+                    method: 'POST',
+                    data: credentials
+                }),
+
+                register: (userData) => API.call({
+                    url: '/auth/register',
+                    method: 'POST',
+                    data: userData
+                }),
+
+                createLoanApplication: (loanData) => API.call({
+                    url: '/loanapplications',
+                    method: 'POST',
+                    data: loanData
+                }),
+
+                updateLoanApplication: (id, loanData) => API.call({
+                    url: `/loanapplications/${id}`,
+                    method: 'PUT',
+                    data: {...loanData, loanApplicationId: parseInt(id)}
+                }),
+
+                submitLoanApplication: (id) => API.call({
+                    url: `/loanapplications/${id}/submit`,
+                    method: 'POST'
+                }),
+
+                approveLoanApplication: (id) => API.call({
+                    url: `/loanapplications/${id}/approve`,
+                    method: 'POST'
+                }),
+
+                rejectLoanApplication: (id, rejectionReason) => API.call({
+                    url: `/loanapplications/${id}/reject`,
+                    method: 'POST',
+                    data: {rejectionReason}
+                }),
+
+                deleteLoanApplication: (id) => API.call({
+                    url: `/loanapplications/${id}`,
+                    method: 'DELETE'
+                })
+            },
+
+            queries: {
+                getUserLoanApplications: () => API.call({
+                    url: '/loanapplications',
+                    method: 'GET'
+                }),
+
+                getPendingLoanApplications: () => API.call({
+                    url: '/loanapplications/pending',
+                    method: 'GET'
+                })
+            },
+
+            showError(error, title = 'შეცდომა') {
+                let message = error.message || 'Unknown error occurred';
+
+                if (error.validationErrors && error.validationErrors.length > 0) {
+                    message += '<br><br><b>ვალიდაციის შეცდომები:</b><br>';
+                    message += error.validationErrors.map(err => `• ${err}`).join('<br>');
+                }
+
+                Ext.Msg.alert(title, message);
+            }
+        };
+        
+        const LoginWindow = Ext.define('App.LoginWindow', {
+            extend: 'Ext.window.Window',
+            title: 'სისტემაში შესვლა',
+            modal: true,
+            closable: false,
+            width: 400,
+            height: 200,
+            layout: 'fit',
+
+            initComponent() {
+                this.items = [{
+                    xtype: 'form',
+                    bodyPadding: 20,
+                    items: [{
+                        xtype: 'textfield',
+                        fieldLabel: 'პირადი ნომერი',
+                        name: 'personalNumber',
+                        allowBlank: false,
+                        anchor: '100%'
+                    }, {
+                        xtype: 'textfield',
+                        fieldLabel: 'პაროლი',
+                        name: 'password',
+                        inputType: 'password',
+                        allowBlank: false,
+                        anchor: '100%'
+                    }],
+                    buttons: [{
+                        text: 'შესვლა',
+                        formBind: true,
+                        handler: this.onLogin,
+                        scope: this
+                    }, {
+                        text: 'რეგისტრაცია',
+                        handler: this.onRegister,
+                        scope: this
+                    }]
+                }];
+                this.callParent();
+            },
+
+            async onLogin() {
+                const form = this.down('form').getForm();
+                if (!form.isValid()) return;
+
+                try {
+                    const values = form.getValues();
+                    const result = await API.commands.login(values);
+                    AppState.setAuth(result.token, result.role);
+                    this.hide();
+                    App.showMainApplication();
+                } catch (error) {
+                    API.showError(error, 'შესვლის შეცდომა');
+                }
+            },
+
+            onRegister() {
+                this.hide();
+                App.showRegistration();
+            }
+        });
+        
+        const RegistrationWindow = Ext.define('App.RegistrationWindow', {
+            extend: 'Ext.window.Window',
+            title: 'რეგისტრაცია',
+            modal: true,
+            closable: false,
+            width: 450,
+            height: 400,
+            layout: 'fit',
+
+            initComponent() {
+                this.items = [{
+                    xtype: 'form',
+                    bodyPadding: 20,
+                    defaults: {anchor: '100%'},
+                    items: [{
+                        xtype: 'textfield',
+                        fieldLabel: 'სახელი',
+                        name: 'firstName',
+                        allowBlank: false
+                    }, {
+                        xtype: 'textfield',
+                        fieldLabel: 'გვარი',
+                        name: 'lastName',
+                        allowBlank: false
+                    }, {
+                        xtype: 'textfield',
+                        fieldLabel: 'პირადი ნომერი',
+                        name: 'personalNumber',
+                        allowBlank: false
+                    }, {
+                        xtype: 'textfield',
+                        fieldLabel: 'ტელეფონის ნომერი',
+                        name: 'phoneNumber',
+                        allowBlank: false
+                    }, {
+                        xtype: 'textfield',
+                        fieldLabel: 'პაროლი',
+                        name: 'password',
+                        inputType: 'password',
+                        allowBlank: false
+                    }, {
+                        xtype: 'datefield',
+                        fieldLabel: 'დაბადების თარიღი',
+                        name: 'dateOfBirth',
+                        allowBlank: false,
+                        format: 'Y-m-d\\TH:i:s\\Z',
+                        submitFormat: 'c'
+                    }],
+                    buttons: [{
+                        text: 'რეგისტრაცია',
+                        formBind: true,
+                        handler: this.onRegister,
+                        scope: this
+                    }, {
+                        text: 'გაუქმება',
+                        handler: this.onCancel,
+                        scope: this
+                    }]
+                }];
+                this.callParent();
+            },
+
+            async onRegister() {
+                const form = this.down('form').getForm();
+                if (!form.isValid()) return;
+
+                try {
+                    const values = form.getValues();
+                    const result = await API.commands.register(values);
+                    AppState.setAuth(result.token, result.role);
+                    Ext.Msg.alert('წარმატება', 'რეგისტრაცია წარმატებით დასრულდა', function () {
+                        this.hide();
+                        App.showMainApplication();
+                    }, this);
+                } catch (error) {
+                    API.showError(error, 'რეგისტრაციის შეცდომა');
+                }
+            },
+
+            onCancel() {
+                this.hide();
+                App.showLogin();
+            }
+        });
+        
+        const LoanForm = Ext.define('App.LoanForm', {
+            extend: 'Ext.form.Panel',
+            title: 'სესხის განაცხადი',
+            bodyPadding: 20,
+            defaults: {anchor: '100%'},
+
+            initComponent() {
+                this.items = [{
+                    xtype: 'combo',
+                    fieldLabel: 'სესხის ტიპი',
+                    name: 'loanType',
+                    store: Utils.getLoanTypeStore(),
+                    displayField: 'field2',
+                    valueField: 'field1',
+                    allowBlank: false,
+                    forceSelection: true,
+                    editable: false
+                }, {
+                    xtype: 'numberfield',
+                    fieldLabel: 'თანხა',
+                    name: 'amount',
+                    allowBlank: false,
+                    minValue: 1
+                }, {
+                    xtype: 'combo',
+                    fieldLabel: 'ვალუტა',
+                    name: 'currency',
+                    store: Utils.getCurrencyStore(),
+                    displayField: 'field2',
+                    valueField: 'field1',
+                    allowBlank: false,
+                    forceSelection: true,
+                    editable: false,
+                    value: CONSTANTS.CURRENCIES.GEL.value
+                }, {
+                    xtype: 'numberfield',
+                    fieldLabel: 'პერიოდი (თვე)',
+                    name: 'periodInMonths',
+                    allowBlank: false,
+                    minValue: 1
+                }, {
+                    xtype: 'hiddenfield',
+                    name: 'id',
+                    value: 0
+                }];
+
+                this.buttons = [{
+                    text: 'შენახვა',
+                    formBind: true,
+                    handler: this.onSave,
+                    scope: this
+                }, {
+                    text: 'გასუფთავება',
+                    handler: this.onClear,
+                    scope: this
+                }, {
+                    text: 'გაგზავნა',
+                    handler: this.onSubmit,
+                    scope: this
+                }];
+
+                this.callParent();
+            },
+
+            async onSave() {
+                if (!this.getForm().isValid()) return;
+
+                try {
+                    const values = this.getForm().getValues();
+                    const isEdit = values.id && values.id !== '0';
+
+                    const loanData = {
+                        loanType: parseInt(values.loanType),
+                        amount: parseFloat(values.amount),
+                        currency: parseInt(values.currency),
+                        periodInMonths: parseInt(values.periodInMonths)
+                    };
+
+                    let result;
+                    if (isEdit) {
+                        result = await API.commands.updateLoanApplication(values.id, loanData);
+                    } else {
+                        result = await API.commands.createLoanApplication(loanData);
+                        if (result && result.loanApplicationId) {
+                            this.down('[name=id]').setValue(result.loanApplicationId);
+                        }
+                    }
+
+                    Ext.Msg.alert('წარმატება', 'განაცხადი წარმატებით შენახულია');
+                    App.refreshLoans();
+                } catch (error) {
+                    API.showError(error, 'შენახვის შეცდომა');
+                }
+            },
+
+            onClear() {
+                this.getForm().reset();
+            },
+
+            async onSubmit() {
+                if (!this.getForm().isValid()) return;
+
+                try {
+                    const values = this.getForm().getValues();
+
+                    if (!values.id || values.id === '0') {
+                        await this.onSave();
+                        const updatedValues = this.getForm().getValues();
+                        values.id = updatedValues.id;
+                    }
+
+                    await API.commands.submitLoanApplication(values.id);
+                    Ext.Msg.alert('წარმატება', 'განაცხადი წარმატებით გაიგზავნა');
+                    this.getForm().reset();
+                    App.refreshLoans();
+                } catch (error) {
+                    API.showError(error, 'გაგზავნის შეცდომა');
+                }
+            }
+        });
+        
+        const LoansGrid = Ext.define('App.LoansGrid', {
+            extend: 'Ext.grid.Panel',
+            title: 'სესხების სია',
+
+            initComponent() {
+                this.store = Ext.create('Ext.data.Store', {
+                    fields: [
+                        'id', 'userId', 'userFullName', 'loanType', 'amount', 'currency',
+                        'periodInMonths', 'status', 'rejectionReason', 'createdAt',
+                        'canEdit', 'canSubmit', 'canApprove', 'canReject', 'canDelete'
+                    ],
+                    proxy: {
+                        type: 'rest',
+                        url: CONFIG.API_BASE + '/loanapplications',
+                        reader: { type: 'json' },
+                        headers: { 'Content-Type': 'application/json' }
+                    },
+                    autoLoad: false
+                });
+
+                this.columns = [{
+                    text: 'ID',
+                    dataIndex: 'id',
+                    width: 50
+                }, {
+                    text: 'მომხმარებელი',
+                    dataIndex: 'userFullName',
+                    flex: 1,
+                    hidden: !AppState.isApprover()
+                }, {
+                    text: 'ტიპი',
+                    dataIndex: 'loanType',
+                    width: 150,
+                    renderer: Utils.getLoanTypeLabel
+                }, {
+                    text: 'თანხა',
+                    dataIndex: 'amount',
+                    width: 120,
+                    renderer: function (value, meta, record) {
+                        return Utils.formatAmount(value, record.get('currency'));
+                    }
+                }, {
+                    text: 'პერიოდი',
+                    dataIndex: 'periodInMonths',
+                    width: 100,
+                    renderer: value => `${value} თვე`
+                }, {
+                    text: 'სტატუსი',
+                    dataIndex: 'status',
+                    width: 150,
+                    renderer: Utils.getStatusLabel
+                }, {
+                    text: 'შექმნის თარიღი',
+                    dataIndex: 'createdAt',
+                    width: 140,
+                    renderer: Utils.formatDate
+                }, {
+                    xtype: 'actioncolumn',
+                    text: 'მოქმედებები',
+                    width: 300,
+                    items: [{
+                        iconCls: 'x-fa fa-edit',
+                        tooltip: 'რედაქტირება',
+                        handler: this.onEdit,
+                        scope: this,
+                        isDisabled: function (view, rowIndex, colIndex, item, record) {
+                            return !record.get('canEdit');
+                        }
+                    }, {
+                        iconCls: 'x-fa fa-paper-plane',
+                        tooltip: 'გაგზავნა',
+                        handler: this.onSubmitLoan,
+                        scope: this,
+                        isDisabled: function (view, rowIndex, colIndex, item, record) {
+                            return !record.get('canSubmit');
+                        }
+                    }, {
+                        iconCls: 'x-fa fa-check',
+                        tooltip: 'დადასტურება',
+                        handler: this.onApprove,
+                        scope: this,
+                        isDisabled: function (view, rowIndex, colIndex, item, record) {
+                            return !record.get('canApprove');
+                        }
+                    }, {
+                        iconCls: 'x-fa fa-times',
+                        tooltip: 'უარყოფა',
+                        handler: this.onReject,
+                        scope: this,
+                        isDisabled: function (view, rowIndex, colIndex, item, record) {
+                            return !record.get('canReject');
+                        }
+                    }, {
+                        iconCls: 'x-fa fa-trash',
+                        tooltip: 'წაშლა',
+                        handler: this.onDelete,
+                        scope: this,
+                        isDisabled: function (view, rowIndex, colIndex, item, record) {
+                            return !record.get('canDelete');
+                        }
+                    }]
+                }];
+
+                const toolbarItems = [{
+                    text: 'განახლება',
+                    iconCls: 'x-fa fa-refresh',
+                    handler: this.onRefresh,
+                    scope: this
+                }];
+
+                if (AppState.isApprover()) {
+                    toolbarItems.push('-', {
+                        text: 'მიმდინარე განაცხადები',
+                        handler: this.loadPendingApplications,
+                        scope: this
+                    }, {
+                        text: 'ყველა განაცხადი',
+                        handler: this.loadAllApplications,
+                        scope: this
+                    });
+                }
+
+                toolbarItems.push('->', {
+                    text: 'გამოსვლა',
+                    handler: App.logout
+                });
+
+                this.dockedItems = [{
+                    xtype: 'toolbar',
+                    dock: 'top',
+                    items: toolbarItems
+                }];
+
+                this.callParent();
+            },
+
+            onEdit(view, rowIndex, colIndex, item, e, record) {
+                App.editLoan(record);
+            },
+
+            async onSubmitLoan(view, rowIndex, colIndex, item, e, record) {
+                try {
+                    await API.commands.submitLoanApplication(record.get('id'));
+                    this.getStore().reload();
+                    Ext.Msg.alert('წარმატება', 'განაცხადი წარმატებით გაიგზავნა');
+                } catch (error) {
+                    API.showError(error, 'გაგზავნის შეცდომა');
+                }
+            },
+
+            async onApprove(view, rowIndex, colIndex, item, e, record) {
+                try {
+                    await API.commands.approveLoanApplication(record.get('id'));
+                    this.getStore().reload();
+                    Ext.Msg.alert('წარმატება', 'განაცხადი წარმატებით დადასტურდა');
+                } catch (error) {
+                    API.showError(error, 'დადასტურების შეცდომა');
+                }
+            },
+
+            onReject(view, rowIndex, colIndex, item, e, record) {
+                Ext.Msg.prompt('უარყოფა', 'უარყოფის მიზეზი:', async (btn, text) => {
+                    if (btn === 'ok' && text) {
+                        try {
+                            await API.commands.rejectLoanApplication(record.get('id'), text);
+                            this.getStore().reload();
+                            Ext.Msg.alert('წარმატება', 'განაცხადი წარმატებით უარყოფილია');
+                        } catch (error) {
+                            API.showError(error, 'უარყოფის შეცდომა');
+                        }
+                    }
+                });
+            },
+
+            async onDelete(view, rowIndex, colIndex, item, e, record) {
+                try {
+                    await API.commands.deleteLoanApplication(record.get('id'));
+                    this.getStore().reload();
+                    Ext.Msg.alert('წარმატება', 'განაცხადი წარმატებით წაიშალა');
+                } catch (error) {
+                    API.showError(error, 'წაშლის შეცდომა');
+                }
+            },
+
+            loadPendingApplications() {
+                this.getStore().getProxy().setUrl(CONFIG.API_BASE + '/loanapplications/pending');
+                this.updateAuth();
+                this.getStore().load();
+            },
+
+            loadAllApplications() {
+                this.getStore().getProxy().setUrl(CONFIG.API_BASE + '/loanapplications');
+                this.updateAuth();
+                this.getStore().load();
+            },
+
+            updateAuth() {
+                if (AppState.authToken) {
+                    const proxy = this.getStore().getProxy();
+                    if (!proxy.headers) proxy.headers = {};
+                    proxy.headers['Authorization'] = 'Bearer ' + AppState.authToken;
+                }
+            },
+
+            onRefresh() {
+                this.updateAuth();
+                this.getStore().load();
+            }
+        });
+        
+        const App = {
+            loginWindow: null,
+            registrationWindow: null,
+            mainViewport: null,
+            loanForm: null,
+            loansGrid: null,
+
+            init() {
+                if (AppState.loadAuthFromStorage()) {
+                    this.showMainApplication();
+                } else {
+                    this.showLogin();
+                }
+            },
+
+            showLogin() {
+                if (!this.loginWindow) {
+                    this.loginWindow = Ext.create('App.LoginWindow');
+                }
+                this.loginWindow.down('form').getForm().reset();
+                this.loginWindow.show();
+            },
+
+            showRegistration() {
+                if (!this.registrationWindow) {
+                    this.registrationWindow = Ext.create('App.RegistrationWindow');
+                }
+                this.registrationWindow.down('form').getForm().reset();
+                this.registrationWindow.show();
+            },
+
+            showMainApplication() {
+                if (this.mainViewport) {
+                    this.mainViewport.show();
+                    if (this.loansGrid) {
+                        this.loansGrid.updateAuth();
+                        this.loansGrid.getStore().reload();
+                    }
+                    return;
+                }
+
+                this.loanForm = Ext.create('App.LoanForm');
+                this.loansGrid = Ext.create('App.LoansGrid');
+
+                const title = AppState.isApprover() ?
+                    'სესხის განაცხადების სისტემა (დამამტკიცებელი)' :
+                    'სესხის განაცხადების სისტემა (მომხმარებელი)';
+
+                this.mainViewport = Ext.create('Ext.container.Viewport', {
+                    layout: 'border',
+                    items: [{
+                        region: 'north',
+                        html: `<h1 style="text-align:center; padding:20px; margin:0;">${title}</h1>`,
+                        height: 60
+                    }, {
+                        region: 'west',
+                        title: 'განაცხადი',
+                        width: 400,
+                        collapsible: true,
+                        layout: 'fit',
+                        items: [this.loanForm],
+                        hidden: AppState.isApprover()
+                    }, {
+                        region: 'center',
+                        layout: 'fit',
+                        items: [this.loansGrid]
+                    }]
+                });
+
+                this.loansGrid.updateAuth();
+                this.loansGrid.getStore().load();
+
+                if (AppState.isApprover()) {
+                    this.loansGrid.loadPendingApplications();
+                }
+            },
+
+            editLoan(record) {
+                if (this.loanForm) {
+                    this.loanForm.getForm().loadRecord(record);
+                    const westPanel = this.mainViewport.down('[region=west]');
+                    if (westPanel.isHidden()) {
+                        westPanel.show();
+                        westPanel.expand();
+                    }
+                }
+            },
+
+            refreshLoans() {
+                if (this.loansGrid) {
+                    this.loansGrid.updateAuth();
+                    this.loansGrid.getStore().reload();
+                }
+            },
+
+            logout() {
+                Ext.Msg.confirm('გამოსვლა',
+                    'დარწმუნებული ხართ, რომ გსურთ სისტემიდან გამოსვლა?',
+                    (btn) => {
+                        if (btn === 'yes') {
+                            AppState.clearAuth();
+                            location.reload();
+                        }
+                    });
+            }
+        };
+
+        App.init();
+        window.LoanApp = App;
+    });
+</script>
+</body>
+</html>
