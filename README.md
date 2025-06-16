@@ -50,8 +50,6 @@ RabbitMQ Management UI: http://localhost:15672 (guest/guest)
 
 Visual Studio-თი ან JetBrains Rider-ით გაუშვით LoanManagement.Api და LoanManagement.Web IIS Express პროფაილით 
 
-პორტები და URL-ები მითითებულია თითოეული პროექტის `launchSettings.json` ფაილში.
-
 ## სისტემაში შესვლა
 
 ### დეფოლტ დამამტკიცებელი
